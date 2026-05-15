@@ -1,4 +1,5 @@
 import os
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
@@ -6,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import classification_report, confusion_matrix
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import datasets, models, transforms
 from tqdm import tqdm
 
 
@@ -14,16 +15,40 @@ class Model(nn.Module):
     # TODO: Implement your own model
     def __init__(self, num_classes=2):
         super(Model, self).__init__()
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.fc1 = nn.Linear(64 * 112 * 112, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+
+        # Use ResNet-18 as the backbone
+        self.backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+
+        # Modify the first convolutional layer to accept 1-channel input
+        original_conv1 = self.backbone.conv1
+        self.backbone.conv1 = nn.Conv2d(
+            1, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+        with torch.no_grad():
+            self.backbone.conv1.weight = nn.Parameter(
+                original_conv1.weight.mean(dim=1, keepdim=True)
+            )
+
+        # Freeze the early layers and fine-tune the later layers
+        for name, param in self.backbone.named_parameters():
+            if (
+                name.startswith("layer1")
+                or name.startswith("bn1")
+                or name.startswith("conv1")
+            ):
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+
+        # Replace the final fully connected layer to match the number of classes
+        in_features = self.backbone.fc.in_features
+        self.backbone.fc = nn.Sequential(  # type: ignore
+            nn.Dropout(0.5),
+            nn.Linear(in_features, num_classes),
+        )
 
     def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.backbone(x)
         return x
 
 
@@ -44,6 +69,25 @@ class FederatedLearning:
         model.train()
         total_loss = 0.0
         total = 0
+
+        # Calculate class weights to handle class imbalance
+        if hasattr((train_loader.dataset), "targets"):
+            targets = train_loader.dataset.targets
+        else:
+            targets = [y for _, y in train_loader.dataset]
+
+        class_counts = torch.bincount(torch.tensor(targets))
+        total_samples = class_counts.sum().float()
+        class_weights = total_samples / (len(class_counts) * class_counts.float())
+        class_weights = class_weights.to(self.device)
+
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+        for name, module in model.backbone.named_modules():
+            if (name.startswith("bn1") or name.startswith("layer1")) and isinstance(
+                module, nn.BatchNorm2d
+            ):
+                module.eval()
 
         batch_loop = tqdm(
             train_loader, desc=f"Training {client_name}", leave=False, unit="batch"
@@ -110,15 +154,25 @@ class FederatedLearning:
         # TODO: Implement the weight aggregation(FedAvg)
         avg_weights = {}
         for key in client_weights[0].keys():
-            avg_weights[key] = torch.stack(
-                [client_weights[i][key] for i in range(len(client_weights))]
-            ).mean(0)
+            # Skip non-floating point tensors (e.g., num_batches_tracked is Long)
+            if client_weights[0][key].dtype not in [
+                torch.float16,
+                torch.float32,
+                torch.float64,
+            ]:
+                avg_weights[key] = client_weights[0][key].clone()
+            else:
+                avg_weights[key] = torch.stack(
+                    [client_weights[i][key] for i in range(len(client_weights))]
+                ).mean(0)
         return avg_weights
-        return
 
     def round_robin_training(self):
         # TODO: Implement the round-robin training process and cross validation
         criterion = nn.CrossEntropyLoss()
+        best_server_loss = float("inf")
+        patience = 5
+        wait = 0
 
         for round_idx in range(self.epochs):
             print(f"Round {round_idx + 1}/{self.epochs}")
@@ -128,7 +182,9 @@ class FederatedLearning:
                 client_model = Model(num_classes=2).to(self.device)
                 client_model.load_state_dict(self.global_model.state_dict())
 
-                optimizer = optim.Adam(client_model.parameters(), lr=self.lr)
+                optimizer = optim.AdamW(
+                    client_model.parameters(), lr=self.lr, weight_decay=1e-4
+                )
 
                 train_loader = self.clients[client_name]["train"]
                 self.train_client(
@@ -136,9 +192,14 @@ class FederatedLearning:
                 )
 
                 # client_weights.append(client_model.state_dict().copy())
-                client_weights.append({k: v.clone() for k, v in client_model.state_dict().items()})
+                client_weights.append(
+                    {k: v.clone() for k, v in client_model.state_dict().items()}
+                )
 
             avg_weights = self.weight_aggregation(client_weights)
+            torch.save(
+                avg_weights, f"outputs/fl/avg_weighted_model_round_{round_idx + 1}.pt"
+            )
             self.global_model.load_state_dict(avg_weights)
 
             server_test_loader = self.server["Server"]["test"]
@@ -148,6 +209,24 @@ class FederatedLearning:
             print(
                 f"Round {round_idx + 1} - Server Test Acc: {test_acc:.4f}, F1: {test_f1:.4f}"
             )
+
+            if test_loss < best_server_loss:
+                best_server_loss = test_loss
+                torch.save(
+                    self.global_model.state_dict(),
+                    "outputs/fl/fl_model.pt",
+                )
+                wait = 0
+            else:
+                wait += 1
+                if wait >= patience:
+                    print(f"Early stopping at round {round_idx + 1}")
+                    self.global_model.load_state_dict(
+                        torch.load("outputs/fl/fl_model.pt")
+                    )
+                    break
+
+        self.loss_history["Server"].append(test_loss)
 
         for client_name in ["Client1", "Client2"]:
             test_loader = self.clients[client_name]["test"]
@@ -174,7 +253,6 @@ class FederatedLearning:
         plt.legend()
         plt.tight_layout()
         # plt.savefig("federated_learning_loss.png")
-        os.makedirs("outputs/fl", exist_ok=True)
         plt.savefig("outputs/fl/federated_learning_loss.png")
         plt.close()
 
@@ -193,14 +271,14 @@ class FederatedLearning:
         plt.ylabel("True Labels")
         plt.title(f"{name} Confusion Matrix")
         plt.tight_layout()
-        os.makedirs("outputs/fl", exist_ok=True)
         filename = f"outputs/fl/{name.lower()}_fl_confusion_matrix.png"
         plt.savefig(filename)
-        os.makedirs("outputs/fl", exist_ok=True)
         plt.close()
 
 
 def main():
+    os.makedirs("outputs/fl", exist_ok=True)
+
     client_dataset_paths = {
         "Client1": {
             "train": "data/FederatedLearning/Client1/train/",
@@ -216,9 +294,28 @@ def main():
         "Server": {"test": "data/FederatedLearning/Server/test/"},
     }
 
-    basic_transform = transforms.Compose(
+    train_transform = transforms.Compose(
         [
             transforms.Grayscale(num_output_channels=1),
+            # Additional transforms for data augmentation
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.RandomAffine(
+                degrees=5, translate=(0.05, 0.05), scale=(0.95, 1.05)
+            ),
+            transforms.ColorJitter(brightness=0.15, contrast=0.15),
+            transforms.RandomApply(
+                [transforms.GaussianBlur(kernel_size=9, sigma=(0.5, 2.0))], p=0.8
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+
+    test_transform = transforms.Compose(
+        [
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
@@ -229,14 +326,18 @@ def main():
     client_dataloaders = {
         client: {
             "train": DataLoader(
-                datasets.ImageFolder(path["train"], transform=basic_transform),
+                datasets.ImageFolder(path["train"], transform=train_transform),
                 batch_size=batch_size,
                 shuffle=True,
+                num_workers=4,
+                pin_memory=True,
             ),
             "test": DataLoader(
-                datasets.ImageFolder(path["test"], transform=basic_transform),
+                datasets.ImageFolder(path["test"], transform=test_transform),
                 batch_size=batch_size,
                 shuffle=False,
+                num_workers=4,
+                pin_memory=True,
             ),
         }
         for client, path in client_dataset_paths.items()
@@ -246,17 +347,19 @@ def main():
         "Server": {
             "test": DataLoader(
                 datasets.ImageFolder(
-                    server_dataset_path["Server"]["test"], transform=basic_transform
+                    server_dataset_path["Server"]["test"], transform=test_transform
                 ),
                 batch_size=batch_size,
                 shuffle=False,
+                num_workers=4,
+                pin_memory=True,
             )
         }
     }
 
     # Hyperparameters
     epoch = 20
-    lr = 0.0005
+    lr = 1e-4
     k_folds = 5
 
     print(

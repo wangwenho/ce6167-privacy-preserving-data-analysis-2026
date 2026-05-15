@@ -7,8 +7,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader
-from torchvision import datasets
+from torchvision import datasets, models
 from tqdm import tqdm
 
 
@@ -16,25 +17,50 @@ class Model(nn.Module):
     # TODO: Implement your own model
     def __init__(self, num_classes=2):
         super(Model, self).__init__()
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.fc1 = nn.Linear(64 * 112 * 112, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+
+        # Use ResNet-18 as the backbone
+        self.backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+
+        # Modify the first convolutional layer to accept 1-channel input
+        original_conv1 = self.backbone.conv1
+        self.backbone.conv1 = nn.Conv2d(
+            1, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+        with torch.no_grad():
+            self.backbone.conv1.weight = nn.Parameter(
+                original_conv1.weight.mean(dim=1, keepdim=True)
+            )
+
+        # Freeze the early layers and fine-tune the later layers
+        for name, param in self.backbone.named_parameters():
+            if (
+                name.startswith("layer1")
+                or name.startswith("bn1")
+                or name.startswith("conv1")
+            ):
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+
+        # Replace the final fully connected layer to match the number of classes
+        in_features = self.backbone.fc.in_features
+        self.backbone.fc = nn.Sequential(  # type: ignore
+            nn.Dropout(0.5),
+            nn.Linear(in_features, num_classes),
+        )
 
     def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.backbone(x)
         return x
 
 
 class CentralizedLearning:
-    def __init__(self, batch_size, learning_rate, num_epochs, device):
+    def __init__(self, batch_size, learning_rate, num_epochs, device, class_weights=None):
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
         self.device = device
+        self.class_weights = class_weights
 
     def calculate_f1_score(self, y_true, y_pred):
         return classification_report(y_true, y_pred, output_dict=True, zero_division=0)
@@ -48,9 +74,7 @@ class CentralizedLearning:
         test_dataloader=None,
     ):
         # TODO: Implement the training process and cross validation.
-        criterion = nn.CrossEntropyLoss()
-
-        from sklearn.model_selection import KFold
+        criterion = nn.CrossEntropyLoss(weight=self.class_weights.to(self.device) if self.class_weights is not None else None)
 
         dataset = train_dataloader.dataset
         kfold = KFold(n_splits=k_folds, shuffle=True)
@@ -58,20 +82,31 @@ class CentralizedLearning:
         val_losses = []
         best_epochs = []
 
-        # Phase 1: Early stopping based on validation loss
+        # Phase 1: Train with K-Fold Cross Validation to find the optimal number of epochs
         for fold, (train_ids, val_ids) in enumerate(kfold.split(dataset)):
             print(f"Fold {fold + 1}/{k_folds}")
-            train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)  # type: ignore
-            val_subsampler = torch.utils.data.SubsetRandomSampler(val_ids)  # type: ignore
+
+            train_sub_dataset = torch.utils.data.Subset(dataset, train_ids)  # type: ignore
+            val_sub_dataset = torch.utils.data.Subset(dataset, val_ids)  # type: ignore
             train_loader = DataLoader(
-                dataset, batch_size=self.batch_size, sampler=train_subsampler
+                train_sub_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=4,
+                pin_memory=True,
             )
             val_loader = DataLoader(
-                dataset, batch_size=self.batch_size, sampler=val_subsampler
+                val_sub_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True,
             )
 
             fold_model = Model(num_classes=2).to(self.device)
-            optimizer = optim.Adam(fold_model.parameters(), lr=self.learning_rate)
+            optimizer = optim.AdamW(
+                fold_model.parameters(), lr=self.learning_rate, weight_decay=1e-4
+            )
 
             best_val_loss = float("inf")
             best_epoch = 0
@@ -80,6 +115,14 @@ class CentralizedLearning:
 
             for epoch in range(self.num_epochs):
                 fold_model.train()
+
+                # Set BatchNorm layers to eval mode to prevent them from updating their running statistics
+                for name, module in fold_model.backbone.named_modules():
+                    if (
+                        name.startswith("bn1") or name.startswith("layer1")
+                    ) and isinstance(module, nn.BatchNorm2d):
+                        module.eval()
+
                 batch_loop = tqdm(
                     train_loader,
                     desc=f"Epoch {epoch + 1}/{self.num_epochs}",
@@ -100,12 +143,19 @@ class CentralizedLearning:
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
-                    best_epoch = epoch
+                    best_epoch = epoch + 1
+                    torch.save(
+                        fold_model.state_dict(),
+                        f"outputs/cl/best_model_fold_{fold + 1}.pt",
+                    )
                     wait = 0
                 else:
                     wait += 1
                     if wait >= patience:
                         print(f"Early stopping at epoch {epoch + 1}")
+                        fold_model.load_state_dict(
+                            torch.load(f"outputs/cl/best_model_fold_{fold + 1}.pt")
+                        )
                         break
 
             val_losses.append(best_val_loss)
@@ -113,13 +163,22 @@ class CentralizedLearning:
 
         # Phase 2: Use full training data to train the final model with the optimal number of epochs
         optimal_epochs = int(sum(best_epochs) / len(best_epochs))
-        print(optimal_epochs)
 
         final_model = Model(num_classes=2).to(self.device)
-        optimizer = optim.Adam(final_model.parameters(), lr=self.learning_rate)
+        optimizer = optim.AdamW(
+            final_model.parameters(), lr=self.learning_rate, weight_decay=1e-4
+        )
 
         for epoch in range(optimal_epochs):
             final_model.train()
+
+            # Set BatchNorm layers to eval mode to prevent them from updating their running statistics
+            for name, module in final_model.backbone.named_modules():
+                if (name.startswith("bn1") or name.startswith("layer1")) and isinstance(
+                    module, nn.BatchNorm2d
+                ):
+                    module.eval()
+
             batch_loop = tqdm(
                 train_dataloader,
                 desc=f"Final Model Epoch {epoch + 1}/{optimal_epochs}",
@@ -134,8 +193,11 @@ class CentralizedLearning:
                 loss.backward()
                 optimizer.step()
 
-            # self.evaluate(model, val_loader, class_names)
+            torch.save(final_model.state_dict(), "outputs/cl/cl_model.pt")
+            self.evaluate(final_model, train_dataloader, class_names)
 
+        # Evaluate the final model on the test set
+        print("\nEvaluating final model on the test set...")
         self.evaluate(final_model, test_dataloader, class_names)
         return
 
@@ -200,7 +262,6 @@ class CentralizedLearning:
         plt.title("Centralized Learning Confusion Matrix")
         plt.tight_layout()
         # plt.savefig("cl_confusion_matrix.png")
-        os.makedirs("outputs/cl", exist_ok=True)
         plt.savefig("outputs/cl/cl_confusion_matrix.png")
         plt.close()
 
@@ -208,10 +269,30 @@ class CentralizedLearning:
 
 
 def main():
+    os.makedirs("outputs/cl", exist_ok=True)
 
-    basic_transform = transforms.Compose(
+    train_transform = transforms.Compose(
         [
             transforms.Grayscale(num_output_channels=1),
+            # Additional transforms for data augmentation
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(p=0.3),
+            transforms.RandomAffine(
+                degrees=5, translate=(0.05, 0.05), scale=(0.95, 1.05)
+            ),
+            transforms.ColorJitter(brightness=0.15, contrast=0.15),
+            transforms.RandomApply(
+                [transforms.GaussianBlur(kernel_size=9, sigma=(0.5, 2.0))], p=0.8
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+
+    test_transform = transforms.Compose(
+        [
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
@@ -221,26 +302,42 @@ def main():
     test_folder_path = "data/CentralizedLearning/task/test"
 
     train_dataset = datasets.ImageFolder(
-        root=train_folder_path, transform=basic_transform
+        root=train_folder_path, transform=train_transform
     )
-    test_dataset = datasets.ImageFolder(
-        root=test_folder_path, transform=basic_transform
-    )
+    test_dataset = datasets.ImageFolder(root=test_folder_path, transform=test_transform)
+
+    # Calculate class weights to handle class imbalance
+    class_counts = torch.bincount(torch.tensor(train_dataset.targets))
+    total = class_counts.sum().float()
+    class_weights = total / (len(class_counts) * class_counts.float())
+    print(f"Class counts: {class_counts.tolist()}, Class weights: {class_weights.tolist()}")
 
     batch_size = 32
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+    )
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
 
     class_names = list(train_dataset.class_to_idx.keys())
 
     # Set Hyperparameters
-    k_folds = 2
-    learning_rate = 0.001
+    k_folds = 3
+    learning_rate = 5e-4
     num_epochs = 20
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"Using device: {device}")
-    trainer = CentralizedLearning(batch_size, learning_rate, num_epochs, device)
+    trainer = CentralizedLearning(batch_size, learning_rate, num_epochs, device, class_weights)
     trainer.train(Model(), train_dataloader, k_folds, class_names, test_dataloader)
     print("\nTraining finished!")
 
