@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
@@ -172,7 +173,9 @@ class FederatedLearning:
         plt.title("Federated Learning Training Loss per Client")
         plt.legend()
         plt.tight_layout()
-        plt.savefig("federated_learning_loss.png")
+        # plt.savefig("federated_learning_loss.png")
+        os.makedirs("outputs/fl", exist_ok=True)
+        plt.savefig("outputs/fl/federated_learning_loss.png")
         plt.close()
 
     def plot_confusion_matrix(self, y_true, y_pred, name="Model"):
@@ -190,8 +193,10 @@ class FederatedLearning:
         plt.ylabel("True Labels")
         plt.title(f"{name} Confusion Matrix")
         plt.tight_layout()
-        filename = f"{name.lower()}_fl_confusion_matrix.png"
+        os.makedirs("outputs/fl", exist_ok=True)
+        filename = f"outputs/fl/{name.lower()}_fl_confusion_matrix.png"
         plt.savefig(filename)
+        os.makedirs("outputs/fl", exist_ok=True)
         plt.close()
 
 

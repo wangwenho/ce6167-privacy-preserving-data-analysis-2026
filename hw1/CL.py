@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
@@ -38,7 +40,12 @@ class CentralizedLearning:
         return classification_report(y_true, y_pred, output_dict=True, zero_division=0)
 
     def train(
-        self, model, train_dataloader, k_folds=3, class_names=None, test_dataloader=None
+        self,
+        fold_model,
+        train_dataloader,
+        k_folds=3,
+        class_names=None,
+        test_dataloader=None,
     ):
         # TODO: Implement the training process and cross validation.
         criterion = nn.CrossEntropyLoss()
@@ -48,6 +55,10 @@ class CentralizedLearning:
         dataset = train_dataloader.dataset
         kfold = KFold(n_splits=k_folds, shuffle=True)
 
+        val_losses = []
+        best_epochs = []
+
+        # Phase 1: Early stopping based on validation loss
         for fold, (train_ids, val_ids) in enumerate(kfold.split(dataset)):
             print(f"Fold {fold + 1}/{k_folds}")
             train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)  # type: ignore
@@ -59,11 +70,16 @@ class CentralizedLearning:
                 dataset, batch_size=self.batch_size, sampler=val_subsampler
             )
 
-            model = Model(num_classes=2).to(self.device)
-            optimizer = optim.Adam(model.parameters(), lr=self.learning_rate)
+            fold_model = Model(num_classes=2).to(self.device)
+            optimizer = optim.Adam(fold_model.parameters(), lr=self.learning_rate)
+
+            best_val_loss = float("inf")
+            best_epoch = 0
+            patience = 5
+            wait = 0
 
             for epoch in range(self.num_epochs):
-                model.train()
+                fold_model.train()
                 batch_loop = tqdm(
                     train_loader,
                     desc=f"Epoch {epoch + 1}/{self.num_epochs}",
@@ -73,14 +89,54 @@ class CentralizedLearning:
                 for data, target in batch_loop:
                     data, target = data.to(self.device), target.to(self.device)
                     optimizer.zero_grad()
-                    output = model(data)
+                    output = fold_model(data)
                     loss = criterion(output, target)
                     loss.backward()
                     optimizer.step()
 
-            self.evaluate(model, val_loader, class_names)
+                val_loss, val_acc, val_f1, _, _ = self.evaluate(
+                    fold_model, val_loader, class_names
+                )
 
-        self.evaluate(model, test_dataloader, class_names)
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_epoch = epoch
+                    wait = 0
+                else:
+                    wait += 1
+                    if wait >= patience:
+                        print(f"Early stopping at epoch {epoch + 1}")
+                        break
+
+            val_losses.append(best_val_loss)
+            best_epochs.append(best_epoch)
+
+        # Phase 2: Use full training data to train the final model with the optimal number of epochs
+        optimal_epochs = int(sum(best_epochs) / len(best_epochs))
+        print(optimal_epochs)
+
+        final_model = Model(num_classes=2).to(self.device)
+        optimizer = optim.Adam(final_model.parameters(), lr=self.learning_rate)
+
+        for epoch in range(optimal_epochs):
+            final_model.train()
+            batch_loop = tqdm(
+                train_dataloader,
+                desc=f"Final Model Epoch {epoch + 1}/{optimal_epochs}",
+                leave=False,
+                unit="batch",
+            )
+            for data, target in batch_loop:
+                data, target = data.to(self.device), target.to(self.device)
+                optimizer.zero_grad()
+                output = final_model(data)
+                loss = criterion(output, target)
+                loss.backward()
+                optimizer.step()
+
+            # self.evaluate(model, val_loader, class_names)
+
+        self.evaluate(final_model, test_dataloader, class_names)
         return
 
     def evaluate(self, model, test_loader, class_names=None):
@@ -113,9 +169,9 @@ class CentralizedLearning:
         acc = sum(int(a == b) for a, b in zip(all_true_labels, all_pred_labels)) / len(
             all_true_labels
         )
-        Test_loss = total_loss / total
+        test_loss = total_loss / total
         print(
-            f"Test Loss: {Test_loss:.4f}, Acc: {acc:.4f}, F1-score: {f1:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}"
+            f"Test Loss: {test_loss:.4f}, Acc: {acc:.4f}, F1-score: {f1:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}"
         )
         print(
             classification_report(
@@ -143,9 +199,12 @@ class CentralizedLearning:
         plt.ylabel("True Labels")
         plt.title("Centralized Learning Confusion Matrix")
         plt.tight_layout()
-        plt.savefig("cl_confusion_matrix.png")
+        # plt.savefig("cl_confusion_matrix.png")
+        os.makedirs("outputs/cl", exist_ok=True)
+        plt.savefig("outputs/cl/cl_confusion_matrix.png")
         plt.close()
-        return
+
+        return test_loss, acc, f1, all_pred_labels, all_true_labels
 
 
 def main():
@@ -175,7 +234,7 @@ def main():
     class_names = list(train_dataset.class_to_idx.keys())
 
     # Set Hyperparameters
-    k_folds = 5
+    k_folds = 2
     learning_rate = 0.001
     num_epochs = 20
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
