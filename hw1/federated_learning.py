@@ -198,7 +198,7 @@ class FederatedLearning:
 
             avg_weights = self.weight_aggregation(client_weights)
             torch.save(
-                avg_weights, f"outputs/fl/avg_weighted_model_round_{round_idx + 1}.pt"
+                avg_weights, f"outputs/fl/checkpoints/avg_weighted_model_round_{round_idx + 1}.pt"
             )
             self.global_model.load_state_dict(avg_weights)
 
@@ -214,7 +214,7 @@ class FederatedLearning:
                 best_server_loss = test_loss
                 torch.save(
                     self.global_model.state_dict(),
-                    "outputs/fl/fl_model.pt",
+                    "outputs/fl/checkpoints/fl_model.pt",
                 )
                 wait = 0
             else:
@@ -222,25 +222,25 @@ class FederatedLearning:
                 if wait >= patience:
                     print(f"Early stopping at round {round_idx + 1}")
                     self.global_model.load_state_dict(
-                        torch.load("outputs/fl/fl_model.pt")
+                        torch.load("outputs/fl/checkpoints/fl_model.pt")
                     )
                     break
 
-        self.loss_history["Server"].append(test_loss)
+            self.loss_history["Server"].append(test_loss)
 
-        for client_name in ["Client1", "Client2"]:
-            test_loader = self.clients[client_name]["test"]
+            for client_name in ["Client1", "Client2"]:
+                test_loader = self.clients[client_name]["test"]
+                test_loss, test_acc, test_f1, preds, targets = self.evaluate(
+                    self.global_model, test_loader
+                )
+                self.plot_confusion_matrix(targets, preds, name=client_name)
+
+            server_test_loader = self.server["Server"]["test"]
             test_loss, test_acc, test_f1, preds, targets = self.evaluate(
-                self.global_model, test_loader
+                self.global_model, server_test_loader
             )
-            self.plot_confusion_matrix(targets, preds, name=client_name)
-
-        server_test_loader = self.server["Server"]["test"]
-        test_loss, test_acc, test_f1, preds, targets = self.evaluate(
-            self.global_model, server_test_loader
-        )
-        self.plot_confusion_matrix(targets, preds, name="Server")
-        self.plot_loss()
+            self.plot_confusion_matrix(targets, preds, name="Server")
+            self.plot_loss()
         return
 
     def plot_loss(self):
@@ -253,7 +253,7 @@ class FederatedLearning:
         plt.legend()
         plt.tight_layout()
         # plt.savefig("federated_learning_loss.png")
-        plt.savefig("outputs/fl/federated_learning_loss.png")
+        plt.savefig("outputs/fl/results/federated_learning_loss.png")
         plt.close()
 
     def plot_confusion_matrix(self, y_true, y_pred, name="Model"):
@@ -271,13 +271,14 @@ class FederatedLearning:
         plt.ylabel("True Labels")
         plt.title(f"{name} Confusion Matrix")
         plt.tight_layout()
-        filename = f"outputs/fl/{name.lower()}_fl_confusion_matrix.png"
+        filename = f"outputs/fl/results/{name.lower()}_fl_confusion_matrix.png"
         plt.savefig(filename)
         plt.close()
 
 
 def main():
-    os.makedirs("outputs/fl", exist_ok=True)
+    os.makedirs("outputs/fl/checkpoints", exist_ok=True)
+    os.makedirs("outputs/fl/results", exist_ok=True)
 
     client_dataset_paths = {
         "Client1": {

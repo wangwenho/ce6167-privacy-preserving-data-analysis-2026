@@ -55,7 +55,9 @@ class Model(nn.Module):
 
 
 class CentralizedLearning:
-    def __init__(self, batch_size, learning_rate, num_epochs, device, class_weights=None):
+    def __init__(
+        self, batch_size, learning_rate, num_epochs, device, class_weights=None
+    ):
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
@@ -74,7 +76,11 @@ class CentralizedLearning:
         test_dataloader=None,
     ):
         # TODO: Implement the training process and cross validation.
-        criterion = nn.CrossEntropyLoss(weight=self.class_weights.to(self.device) if self.class_weights is not None else None)
+        criterion = nn.CrossEntropyLoss(
+            weight=self.class_weights.to(self.device)
+            if self.class_weights is not None
+            else None
+        )
 
         dataset = train_dataloader.dataset
         kfold = KFold(n_splits=k_folds, shuffle=True)
@@ -146,7 +152,7 @@ class CentralizedLearning:
                     best_epoch = epoch + 1
                     torch.save(
                         fold_model.state_dict(),
-                        f"outputs/cl/best_model_fold_{fold + 1}.pt",
+                        f"outputs/cl/checkpoints/best_model_fold_{fold + 1}.pt",
                     )
                     wait = 0
                 else:
@@ -154,7 +160,7 @@ class CentralizedLearning:
                     if wait >= patience:
                         print(f"Early stopping at epoch {epoch + 1}")
                         fold_model.load_state_dict(
-                            torch.load(f"outputs/cl/best_model_fold_{fold + 1}.pt")
+                            torch.load(f"outputs/cl/checkpoints/best_model_fold_{fold + 1}.pt")
                         )
                         break
 
@@ -193,7 +199,7 @@ class CentralizedLearning:
                 loss.backward()
                 optimizer.step()
 
-            torch.save(final_model.state_dict(), "outputs/cl/cl_model.pt")
+            torch.save(final_model.state_dict(), "outputs/cl/results/cl_model.pt")
             self.evaluate(final_model, train_dataloader, class_names)
 
         # Evaluate the final model on the test set
@@ -262,14 +268,15 @@ class CentralizedLearning:
         plt.title("Centralized Learning Confusion Matrix")
         plt.tight_layout()
         # plt.savefig("cl_confusion_matrix.png")
-        plt.savefig("outputs/cl/cl_confusion_matrix.png")
+        plt.savefig("outputs/cl/results/cl_confusion_matrix.png")
         plt.close()
 
         return test_loss, acc, f1, all_pred_labels, all_true_labels
 
 
 def main():
-    os.makedirs("outputs/cl", exist_ok=True)
+    os.makedirs("outputs/cl/checkpoints", exist_ok=True)
+    os.makedirs("outputs/cl/results", exist_ok=True)
 
     train_transform = transforms.Compose(
         [
@@ -310,7 +317,9 @@ def main():
     class_counts = torch.bincount(torch.tensor(train_dataset.targets))
     total = class_counts.sum().float()
     class_weights = total / (len(class_counts) * class_counts.float())
-    print(f"Class counts: {class_counts.tolist()}, Class weights: {class_weights.tolist()}")
+    print(
+        f"Class counts: {class_counts.tolist()}, Class weights: {class_weights.tolist()}"
+    )
 
     batch_size = 32
     train_dataloader = DataLoader(
@@ -331,13 +340,15 @@ def main():
     class_names = list(train_dataset.class_to_idx.keys())
 
     # Set Hyperparameters
-    k_folds = 3
+    k_folds = 5
     learning_rate = 5e-4
     num_epochs = 20
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"Using device: {device}")
-    trainer = CentralizedLearning(batch_size, learning_rate, num_epochs, device, class_weights)
+    trainer = CentralizedLearning(
+        batch_size, learning_rate, num_epochs, device, class_weights
+    )
     trainer.train(Model(), train_dataloader, k_folds, class_names, test_dataloader)
     print("\nTraining finished!")
 
