@@ -6,29 +6,29 @@ readme = "README.md"
 requires-python = ">=3.9, <3.10"
 dependencies = [
     # pytorch
-    "torch==1.10.1",
-    "torchvision==0.11.2",
-    "torchaudio==0.10.1",
-    "sentence-transformers==2.2.0",
-    "transformers>=4.0.0, <5.0.0",
+    "torch==2.1.0",
+    "torchvision==0.16.0",
+    "torchaudio==2.1.0",
+    "sentence-transformers==2.2.2",
+    "transformers>=4.34.0, <=4.36.2",
     "numpy<2.0.0",
     "simcse==0.4",
-    "datasets"
+    "datasets",
 ]
 
 
 [tool.uv.sources]
 torch = [
   { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
-  { index = "pytorch-cu113", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
 ]
 torchvision = [
   { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
-  { index = "pytorch-cu113", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
 ]
 torchaudio = [
   { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
-  { index = "pytorch-cu113", marker = "sys_platform != 'darwin'" },
+  { index = "pytorch-cu121", marker = "sys_platform != 'darwin'" },
 ]
 
 [[tool.uv.index]]
@@ -37,6 +37,6 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu113"
-url = "https://download.pytorch.org/whl/cu113"
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
 explicit = true
