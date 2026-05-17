@@ -10,10 +10,14 @@ dependencies = [
     "torchvision==0.16.0",
     "torchaudio==2.1.0",
     "sentence-transformers==2.2.2",
-    "transformers>=4.34.0, <=4.36.2",
+    "transformers==4.36.2",
     "numpy<2.0.0",
     "simcse==0.4",
     "datasets",
+    "evaluate>=0.4.6",
+    "editdistance>=0.8.1",
+    "rouge-score>=0.1.2",
+    "absl-py>=2.3.1",
 ]
 
 

@@ -206,13 +206,18 @@ if __name__ == '__main__':
     metric_token(mpnet_pc_path)
     '''
 
-    abcd_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_abcd_simcse_bert_beam.log'
-    mnli_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_mnli_simcse_bert_beam.log'
-    woz_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_multi_woz_simcse_bert_beam.log'
-    sst2_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_sst2_simcse_bert_beam.log'
-    wmt_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_wmt16_simcse_bert_beam.log'
+    import glob
+    log_dir = 'models'
+    pattern = f'{log_dir}/attacker_gpt2_large_personachat_mpnet_beam*.log'
+    path_list = sorted(glob.glob(pattern))
+    
+    # abcd_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_abcd_simcse_bert_beam.log'
+    # mnli_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_mnli_simcse_bert_beam.log'
+    # woz_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_multi_woz_simcse_bert_beam.log'
+    # sst2_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_sst2_simcse_bert_beam.log'
+    # wmt_path = '/home/hlibt/embed_rev/models_arr_feb/attacker_gpt2_wmt16_simcse_bert_beam.log'
 
-    path_list = [abcd_path,mnli_path,woz_path,sst2_path,wmt_path]
+    # path_list = [abcd_path,mnli_path,woz_path,sst2_path,wmt_path]
     for p in path_list:
         logger.info(f'====={p}=====')
         metric_token(p)
