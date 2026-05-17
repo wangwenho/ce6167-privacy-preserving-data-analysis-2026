@@ -3,7 +3,7 @@ name = "final-project"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9, <3.10"
+requires-python = ">=3.9"
 dependencies = [
     # pytorch
     "torch==2.1.0",
@@ -18,6 +18,7 @@ dependencies = [
     "editdistance>=0.8.1",
     "rouge-score>=0.1.2",
     "absl-py>=2.3.1",
+    "matplotlib>=3.6.3",
 ]
 
 
