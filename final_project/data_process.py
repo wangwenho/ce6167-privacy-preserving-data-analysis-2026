@@ -20,7 +20,7 @@ def get_sent_list(config):
         sent_list = get_personachat_data(data_type)
         # return sent_list
         if data_type == 'test':
-            return sent_list[:10]
+            return sent_list[:1000]
         return sent_list
     elif dataset == 'qnli':
         sent_list = get_qnli_data(data_type)

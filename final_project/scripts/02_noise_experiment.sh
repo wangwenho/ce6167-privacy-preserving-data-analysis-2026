@@ -7,7 +7,7 @@ echo "========================================="
 
 cd "$(dirname "$0")/.."
 
-NOISE_SCALES=(0.0 0.001 0.005 0.01 0.05 0.1 0.5)
+NOISE_SCALES=(0.0 0.001 0.002 0.005 0.008 0.01 0.015 0.02 0.03 0.04 0.05 0.075 0.1 0.25 0.5)
 
 for noise in "${NOISE_SCALES[@]}"; do
     LOG_FILE="models/attacker_gpt2_large_personachat_mpnet_beam_noise_${noise}.log"
