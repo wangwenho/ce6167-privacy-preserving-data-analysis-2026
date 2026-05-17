@@ -1,18 +1,12 @@
-"""
-attacker_noise_experiment.py
-GEIA evaluation with Gaussian noise on projected embeddings.
-
-Usage:
-    uv run python scripts/attacker_noise_experiment.py --noise_scale 0.05
-"""
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
+
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer
+from torch.utils.data import DataLoader
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Override CUDA device before any project imports
@@ -35,6 +29,7 @@ MODEL_CARDS = {
 
 class LinearProjection(nn.Module):
     """Projection layer: 768 -> 1280 (matches GPT-2 token embedding dim)"""
+
     def __init__(self, in_num=768, out_num=1280):
         super().__init__()
         self.fc1 = nn.Linear(in_num, out_num)
@@ -46,10 +41,13 @@ class LinearProjection(nn.Module):
 class PersonaChatDataset(torch.utils.data.Dataset):
     def __init__(self, data):
         self.data = data
+
     def __len__(self):
         return len(self.data)
+
     def __getitem__(self, index):
         return self.data[index]
+
     def collate(self, unpacked_data):
         return unpacked_data
 
@@ -71,7 +69,9 @@ def run_test_with_noise(config, noise_scale):
     embedder.eval()
 
     # Projection
-    proj_path = f"models/projection_gpt2_large_{config['dataset']}_{config['embed_model']}"
+    proj_path = (
+        f"models/projection_gpt2_large_{config['dataset']}_{config['embed_model']}"
+    )
     projection = LinearProjection(in_num=768, out_num=1280)
     projection.load_state_dict(torch.load(proj_path, map_location=device))
     projection.to(device)
@@ -79,7 +79,9 @@ def run_test_with_noise(config, noise_scale):
     print("Projection loaded")
 
     # Attacker
-    attacker_path = f"models/attacker_gpt2_large_{config['dataset']}_{config['embed_model']}"
+    attacker_path = (
+        f"models/attacker_gpt2_large_{config['dataset']}_{config['embed_model']}"
+    )
     config["model"] = AutoModelForCausalLM.from_pretrained(attacker_path).to(device)
     config["tokenizer"] = AutoTokenizer.from_pretrained("microsoft/DialoGPT-large")
     config["model"].eval()
@@ -123,13 +125,19 @@ def run_test_with_noise(config, noise_scale):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GEIA evaluation with noise")
-    parser.add_argument("--noise_scale", type=float, default=0.0,
-                        help="Gaussian noise std dev added to embeddings")
+    parser.add_argument(
+        "--noise_scale",
+        type=float,
+        default=0.0,
+        help="Gaussian noise std dev added to embeddings",
+    )
     parser.add_argument("--dataset", type=str, default="personachat")
-    parser.add_argument("--embed_model", type=str, default="mpnet",
-                        choices=list(MODEL_CARDS.keys()))
-    parser.add_argument("--decode", type=str, default="beam",
-                        choices=["beam", "sampling"])
+    parser.add_argument(
+        "--embed_model", type=str, default="mpnet", choices=list(MODEL_CARDS.keys())
+    )
+    parser.add_argument(
+        "--decode", type=str, default="beam", choices=["beam", "sampling"]
+    )
     parser.add_argument("--model_dir", type=str, default="microsoft/DialoGPT-large")
     parser.add_argument("--batch_size", type=int, default=16)
     args = parser.parse_args()

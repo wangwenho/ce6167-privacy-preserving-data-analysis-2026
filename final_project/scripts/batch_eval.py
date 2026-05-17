@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-"""
-parse_results.py — 讀取 noise experiment logs、執行評估、輸出 CSV。
-
-Usage:
-    uv run python scripts/parse_results.py                    # 輸出 results.csv
-    uv run python scripts/parse_results.py -o my_results.csv  # 指定檔名
-"""
-
 import argparse
 import csv
 import glob
@@ -22,7 +13,6 @@ import nltk
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
 
-# ---------- 評估模型（全域載入一次） ----------
 print("Loading evaluation models...")
 device = "cuda"
 sim_model = SentenceTransformer("sentence-t5-xxl").to(device)
@@ -31,7 +21,6 @@ print("Models loaded.\n")
 
 
 def extract_noise(fname):
-    """從檔名解析 noise scale"""
     m = re.search(r"_noise_([\d.]+)\.log$", fname)
     if m:
         return float(m.group(1))
@@ -45,7 +34,7 @@ def evaluate_one(log_path, encode_batch_size=16):
         data = json.load(f)
     gt, pred = data["gt"], data["pred"]
 
-    # 移除 EOS token
+    # Remove special tokens if present
     pred = [s.replace("<|endoftext|>", "") for s in pred]
 
     # ROUGE
@@ -82,7 +71,9 @@ def evaluate_one(log_path, encode_batch_size=16):
 
     # Embedding Similarity
     emb_gt = sim_model.encode(gt, convert_to_tensor=True, batch_size=encode_batch_size)
-    emb_pred = sim_model.encode(pred, convert_to_tensor=True, batch_size=encode_batch_size)
+    emb_pred = sim_model.encode(
+        pred, convert_to_tensor=True, batch_size=encode_batch_size
+    )
     cos_sim = util.cos_sim(emb_gt, emb_pred).diagonal().cpu().numpy()
     embed_sim = float(np.mean(cos_sim))
 
@@ -103,7 +94,7 @@ def evaluate_one(log_path, encode_batch_size=16):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-o", "--output", default="results.csv")
+    parser.add_argument("-o", "--output", default="outputs/results.csv")
     parser.add_argument("--log-dir", default="models")
     parser.add_argument("--batch-size", type=int, default=16)
     args = parser.parse_args()
@@ -128,6 +119,8 @@ def main():
         rows.append(metrics)
 
     rows.sort(key=lambda r: r["noise"])
+
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
     fieldnames = [
         "noise",
