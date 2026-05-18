@@ -2,7 +2,7 @@
 Qualitative comparison of reconstruction quality at different noise scales.
 
 Scans log files in models/, extracts one sentence across all noise levels,
-and produces a markdown table (stdout) plus a styled matplotlib table (PNG + PDF).
+and produces a markdown table (stdout) plus a styled matplotlib table (PNG).
 """
 
 import argparse
@@ -15,15 +15,33 @@ import sys
 import evaluate
 import matplotlib.pyplot as plt
 
-# ── Log file pattern ──
+plt.style.use("seaborn-v0_8-ticks")
+plt.rcParams.update(
+    {
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "figure.dpi": 150,
+        "savefig.bbox": "tight",
+    }
+)
+
 LOG_DIR = "models"
-BASELINE_PATTERN = "attacker_gpt2_large_personachat_mpnet_beam.log"
+BASELINE_PATTERN = "attacker_gpt2_large_personachat_mpnet_beam_noise_0.0.log"
 NOISE_PATTERN = "attacker_gpt2_large_personachat_mpnet_beam_noise_*.log"
 OUTPUT_DIR = "outputs"
 
+_rouge_evaluator = None
+
+
+def _get_rouge():
+    global _rouge_evaluator
+    if _rouge_evaluator is None:
+        _rouge_evaluator = evaluate.load("rouge")
+    return _rouge_evaluator
+
 
 def extract_noise(fname):
-    """Parse noise scale from log filename. Mirrors batch_eval.py logic."""
+    """Parse noise scale from log filename."""
     m = re.search(r"_noise_([\d.]+)\.log$", fname)
     if m:
         return float(m.group(1))
@@ -67,7 +85,7 @@ def load_log(path):
 
 def rouge1_score(reference, prediction):
     """Compute ROUGE-1 F1 score between two strings."""
-    rouge = evaluate.load("rouge")
+    rouge = _get_rouge()
     result = rouge.compute(predictions=[prediction], references=[reference])
     return result["rouge1"]
 
@@ -94,20 +112,22 @@ def build_markdown_table(rows, gt_sentence, index):
     return "\n".join(lines)
 
 
-def build_matplotlib_table(rows, gt_sentence, index, threshold_row_idx):
-    """Render a styled matplotlib table and save as PNG + PDF."""
+def build_matplotlib_table(rows, gt_sentence, index, fontsize=10):
+    """Render a styled matplotlib table and save as PNG."""
     nrows = len(rows)
     fig_height = nrows * 0.4
     fig, ax = plt.subplots(figsize=(10, fig_height))
     ax.axis("off")
 
-    # Prepare cell text
     cell_text = []
     for noise, sent in rows:
         noise_str = f"{noise:.3f}" if noise > 0 else "0 (baseline)"
         cell_text.append([noise_str, sent])
 
-    col_labels = ["Noise Scale", "Reconstructed Sentence"]
+    col_labels = [
+        "Noise Scale ($\\sigma$)",
+        "Reconstructed Sentence",
+    ]
 
     table = ax.table(
         cellText=cell_text,
@@ -118,81 +138,74 @@ def build_matplotlib_table(rows, gt_sentence, index, threshold_row_idx):
 
     # Style
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
+    table.set_fontsize(fontsize)
     table.scale(1, 1.6)  # increase row height for readability
 
     col_widths = [0.15, 0.85]
     for i, width in enumerate(col_widths):
-        for row_idx in range(nrows + 1):  # +1 for header
+        for row_idx in range(nrows + 1):
             cell = table[row_idx, i]
             cell.set_width(width)
             if row_idx == 0:
-                # Header
-                cell.set_text_props(weight="bold", fontsize=10)
+                cell.set_text_props(weight="regular", fontsize=fontsize)
                 cell.set_facecolor("#404040")
-                cell.set_text_props(color="white", weight="bold", fontsize=10)
+                cell.set_text_props(color="white", weight="regular", fontsize=fontsize)
             elif i == 0:
-                # Noise column: centered, monospace, bold
                 cell.set_text_props(
-                    ha="center", fontfamily="monospace", weight="bold", fontsize=10
+                    ha="center",
+                    fontfamily="monospace",
+                    weight="regular",
+                    fontsize=fontsize,
                 )
             else:
-                # Sentence column: left-aligned, regular
-                cell.set_text_props(ha="left", fontsize=10)
+                cell.set_text_props(ha="left", fontsize=fontsize)
 
-    # Alternating row colors
     for row_idx in range(1, nrows + 1):
         for col_idx in range(2):
             cell = table[row_idx, col_idx]
             if row_idx % 2 == 0:
-                cell.set_facecolor("#f5f5f5")
+                cell.set_facecolor("#f8f8f8")
             else:
                 cell.set_facecolor("white")
 
-    # Highlight ground truth row (index 1 = first data row for baseline noise=0)
-    # Baseline is row index 1 in the table (0 is header)
-    gt_row = 1  # baseline is always first
+    gt_row = 1
     for col_idx in range(2):
         table[gt_row, col_idx].set_facecolor("#e8e8e8")
 
-    # Cell padding (edge text color)
     for row_idx in range(nrows + 1):
         for col_idx in range(2):
             cell = table[row_idx, col_idx]
             cell.set_edgecolor("#cccccc")
             cell.set_linewidth(0.5)
-            # vertical alignment
             cell.set_text_props(va="center")
 
-    # Title
     ax.set_title(
-        "Qualitative Comparison of Reconstruction Quality",
-        fontsize=12,
+        "Reconstruction Examples Across Noise Scales",
+        fontsize=10,
         fontweight="bold",
-        pad=12,
+        pad=6,
     )
 
-    # Subtitle with ground truth
     gt_display = truncate_text(gt_sentence, max_words=25)
-    fig.text(
+    ax.text(
         0.5,
-        0.94,
-        f'Ground truth [index {index}]: "{gt_display}"',
+        0.98,
+        f'Ground truth index {index}: "{gt_display}"',
         ha="center",
-        fontsize=9,
+        va="bottom",
+        fontsize=8,
         style="italic",
         color="#555555",
+        transform=ax.transAxes,
     )
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    png_path = os.path.join(OUTPUT_DIR, "fig4_qualitative_comparison.png")
-    pdf_path = os.path.join(OUTPUT_DIR, "fig4_qualitative_comparison.pdf")
+    png_path = os.path.join(OUTPUT_DIR, "fig4_reconstruction_examples.png")
     fig.savefig(png_path, dpi=300, bbox_inches="tight")
-    fig.savefig(pdf_path, bbox_inches="tight")
     plt.close(fig)
 
-    return png_path, pdf_path
+    return png_path
 
 
 def main():
@@ -217,7 +230,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # ── Gather logs ──
     log_entries = gather_logs(args.log_dir)
     if not log_entries:
         print(f"ERROR: No log files found matching patterns in {args.log_dir}/")
@@ -228,7 +240,6 @@ def main():
         print(f"  [{noise:>7.4f}] {os.path.basename(path)}")
     print()
 
-    # ── Load baseline to pick sentence and validate index ──
     _, baseline_path = log_entries[0]
     gt_all, _ = load_log(baseline_path)
 
@@ -248,8 +259,7 @@ def main():
     print(f"Ground truth: {gt_sentence}")
     print()
 
-    # ── Extract predicted sentences across noise levels ──
-    rows = []  # list of (noise, predicted_sentence)
+    rows = []
     for noise, path in log_entries:
         _, pred_list = load_log(path)
         if sentence_index >= len(pred_list):
@@ -265,31 +275,14 @@ def main():
         print("ERROR: No valid predictions extracted.")
         sys.exit(1)
 
-    # ── Compute ROUGE-1 per row to find threshold ──
-    rouge_scores = []
-    for noise, predicted in rows:
-        r1 = rouge1_score(gt_sentence, predicted)
-        rouge_scores.append(r1)
-
-    threshold_row_idx = None
-    for i, r1 in enumerate(rouge_scores):
-        if r1 < 0.3:
-            threshold_row_idx = i
-            break
-
-    # ── Markdown table ──
     md_table = build_markdown_table(
-        [(n, truncate_text(s, 15)) for n, s in rows], gt_sentence, sentence_index
+        [(n, truncate_text(s, 20)) for n, s in rows], gt_sentence, sentence_index
     )
     print(md_table)
     print()
 
-    # ── Matplotlib table ──
-    png_path, pdf_path = build_matplotlib_table(
-        rows, gt_sentence, sentence_index, threshold_row_idx
-    )
+    png_path = build_matplotlib_table(rows, gt_sentence, sentence_index)
     print(f"Saved: {png_path}")
-    print(f"Saved: {pdf_path}")
 
 
 if __name__ == "__main__":

@@ -141,14 +141,7 @@ def main():
         w.writeheader()
         w.writerows(rows)
 
-    print(f"\n✅ Saved {len(rows)} results to {args.output}")
-    print("\nPreview (noise | ROUGE-1 | BLEU-4 | EM | Embed Sim):")
-    print("-" * 60)
-    for r in rows:
-        print(
-            f"{r['noise']:>8.4f}  {r['rouge1']:.4f}  {r['bleu4']:.4f}  "
-            f"{r['exact_match']:.3f}  {r['embed_sim']:.4f}"
-        )
+    print(f"\nDone. → {len(rows)} results saved to {args.output}")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,12 @@
 set -e
 
 echo "========================================="
-echo "  Noise Experiment Suite"
+echo "  Test Attacker with Noise"
 echo "========================================="
+
+START_TIME=$(date +%s)
+echo "Start: $(date)"
+echo ""
 
 cd "$(dirname "$0")/.."
 
@@ -15,7 +19,7 @@ for noise in "${NOISE_SCALES[@]}"; do
     echo "--- noise_scale = $noise ---"
     echo "    Log: $LOG_FILE"
 
-    uv run python scripts/attacker_noise_experiment.py \
+    uv run python scripts/test_attacker.py \
         --dataset personachat \
         --embed_model mpnet \
         --decode beam \
@@ -30,4 +34,13 @@ for noise in "${NOISE_SCALES[@]}"; do
 done
 
 echo ""
-echo "Noise experiments complete."
+echo "End: $(date)"
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+echo "Elapsed: $((ELAPSED / 60)) min $((ELAPSED % 60)) sec"
+
+echo ""
+echo "--- Verification ---"
+LOG_COUNT=$(ls -1 models/attacker_gpt2_large_personachat_mpnet_beam_noise_*.log 2>/dev/null | wc -l)
+echo "[OK] $LOG_COUNT log files in models/"
+echo ""
