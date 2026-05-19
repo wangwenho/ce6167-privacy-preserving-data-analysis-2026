@@ -4,7 +4,7 @@
 
 This project extends the **Generative Embedding Inversion Attack (GEIA)** framework proposed by Li et al. (ACL 2023 Findings) by investigating **Gaussian noise perturbation** as a defense mechanism against sentence embedding inversion. We systematically evaluate how adding isotropic Gaussian noise of varying magnitudes to sentence embeddings affects the ability of a generative attacker model (DialoGPT-large) to recover the original text from the perturbed embeddings.
 
-Our experiments across 15 noise scales ($\sigma \in [0, 0.5]$) reveal three distinct regimes: **immune** ($\sigma \in [0, 0.01]$), where attack quality is virtually unaffected; **transition** ($\sigma \in (0.01, 0.05)$), where all metrics degrade rapidly; and **failure** ($\sigma \in [0.05, \infty)$), where the attacker effectively produces random text. These findings demonstrate that while small Gaussian noise is insufficient as a practical defense, moderate noise levels ($\sigma \geq 0.05$) can completely neutralize generative embedding inversion attacks — albeit at the cost of degraded embedding utility.
+Our experiments across 15 noise scales ( $\sigma \in [0, 0.5]$ ) reveal three distinct regimes: **immune** ( $\sigma \in [0, 0.01]$ ), where attack quality is virtually unaffected; **transition** ( $\sigma \in (0.01, 0.05)$ ), where all metrics degrade rapidly; and **failure** ( $\sigma \in [0.05, \infty)$ ), where the attacker effectively produces random text. These findings demonstrate that while small Gaussian noise is insufficient as a practical defense, moderate noise levels ( $\sigma \geq 0.05$ ) can completely neutralize generative embedding inversion attacks — albeit at the cost of degraded embedding utility.
 
 ---
 
@@ -42,7 +42,7 @@ We hypothesize that adding controlled Gaussian noise to sentence embeddings befo
 | **Optimizer** | AdamW |
 | **Training samples** | Full PersonaChat training set |
 | **Test samples** | 1,000 (first 1,000 from test set) |
-| **Noise scales ($\sigma$)** | 0, 0.001, 0.002, 0.005, 0.008, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.075, 0.1, 0.25, 0.5 |
+| **Noise scales ( $\sigma$ )** | 0, 0.001, 0.002, 0.005, 0.008, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.075, 0.1, 0.25, 0.5 |
 | **Hardware** | NVIDIA RTX 4090 (24 GB VRAM) |
 | **Training time** | ~5 hours |
 | **Total experiment time** | ~7 hours (training + testing all noise levels) |
@@ -111,7 +111,7 @@ Following the original GEIA protocol, the test set is limited to the first 1,000
 
 ![Generation Quality](outputs/fig1_reconstruction_quality.png)
 
-Three key metrics plotted against noise scale on a logarithmic x-axis. The gray shaded region ($\sigma \in (0.01, 0.05)$) marks the transition zone where reconstruction quality collapses.
+Three key metrics plotted against noise scale on a logarithmic x-axis. The gray shaded region ( $\sigma \in (0.01, 0.05)$ ) marks the transition zone where reconstruction quality collapses.
 
 - **ROUGE-L** drops from 0.57 (baseline) to 0.07 at $\sigma = 0.5$.
 - **BLEU-4** falls below 0.01 for $\sigma \geq 0.25$.
@@ -163,11 +163,11 @@ A side-by-side comparison of the same input sentence reconstructed at each noise
 
 ### 6.1 Three Regimes of Defense Effectiveness
 
-1. **Immune regime ($\sigma \in [0, 0.01]$)**: All evaluation metrics remain statistically indistinguishable from the noise-free baseline. ROUGE-L stays ~0.54–0.57, and Exact Match hovers around 3.5–4.0%. Attackers are essentially unaffected by noise below this threshold.
+1. **Immune regime ( $\sigma \in [0, 0.01]$ )**: All evaluation metrics remain statistically indistinguishable from the noise-free baseline. ROUGE-L stays ~0.54–0.57, and Exact Match hovers around 3.5–4.0%. Attackers are essentially unaffected by noise below this threshold.
 
-2. **Transition regime ($\sigma \in (0.01, 0.05)$)**: A rapid, monotonic degradation occurs across all metrics. ROUGE-L falls from 0.51 to 0.24, BLEU-4 drops by nearly 75%, and Exact Match approaches zero. This is the region where the noise begins to overwhelm the fine-grained embedding features the attacker relies on.
+2. **Transition regime ( $\sigma \in (0.01, 0.05)$ )**: A rapid, monotonic degradation occurs across all metrics. ROUGE-L falls from 0.51 to 0.24, BLEU-4 drops by nearly 75%, and Exact Match approaches zero. This is the region where the noise begins to overwhelm the fine-grained embedding features the attacker relies on.
 
-3. **Failure regime ($\sigma \in [0.05, \infty)$)**: Exact Match reaches **0%**, BLEU-4 is near zero, and ROUGE-L falls below 0.19. The attacker outputs are effectively random with respect to the ground truth. The defense is fully effective in this regime.
+3. **Failure regime ( $\sigma \in [0.05, \infty)$ )**: Exact Match reaches **0%**, BLEU-4 is near zero, and ROUGE-L falls below 0.19. The attacker outputs are effectively random with respect to the ground truth. The defense is fully effective in this regime.
 
 ### 6.2 Embedding Similarity as a Metric
 
@@ -176,8 +176,8 @@ Embedding similarity is notably the **least sensitive** metric — it only decli
 ### 6.3 Implications for Privacy-Preserving Embedding Release
 
 - **Tiny noise is not a defense**: Noise levels below $\sigma \in [0, 0.01]$ provide no meaningful protection.
-- **Moderate noise ($\sigma \in (0.01, 0.05)$)** introduces a trade-off between privacy and utility that may be acceptable in some applications.
-- **High noise ($\sigma \in [0.05, \infty)$)** effectively eliminates inversion attack capability but would likely render embeddings unusable for many downstream tasks.
+- **Moderate noise ( $\sigma \in (0.01, 0.05)$ )** introduces a trade-off between privacy and utility that may be acceptable in some applications.
+- **High noise ( $\sigma \in [0.05, \infty)$ )** effectively eliminates inversion attack capability but would likely render embeddings unusable for many downstream tasks.
 - Formal **differential privacy** mechanisms (e.g., adding calibrated noise with careful sensitivity analysis) would provide stronger guarantees than the ad-hoc Gaussian perturbation explored here.
 
 ---
@@ -216,8 +216,8 @@ bash scripts/01_train_attacker.sh
 
 - **Input**: PersonaChat training set (`data/personachat/processed_persona/train.txt`)
 - **Output**:
-  - [`models/attacker_gpt2_large_personachat_mpnet/`](./models/attacker_gpt2_large_personachat_mpnet/) — Attacker model weights
-  - [`models/projection_gpt2_large_personachat_mpnet`](./models/projection_gpt2_large_personachat_mpnet) — Projection layer weights
+  - `models/attacker_gpt2_large_personachat_mpnet/`: Attacker model weights
+  - `models/projection_gpt2_large_personachat_mpnet`: Projection layer weights
 - **Duration**: ~5 hours on NVIDIA RTX 4090
 - **Configurable arguments**: `--dataset`, `--data_type`, `--num_epochs`, `--batch_size`, `--embed_model`
 
@@ -241,7 +241,7 @@ bash scripts/03_eval_results.sh
 
 - Reads all log files, computes ROUGE-L, BLEU-4, Exact Match, Edit Distance, and Embedding Similarity.
 - **Input**: Log files from Step 2 (`models/attacker_gpt2_large_personachat_mpnet_beam*.log`)
-- **Output**: [`outputs/results.csv`](./outputs/results.csv) (all metrics for each noise level)
+- **Output**: `outputs/results.csv` (all metrics for each noise level)
 - **Configurable arguments**: `--output`, `--log-dir`, `--batch-size`
 
 #### Step 4: Generate Figures
@@ -251,12 +251,12 @@ bash scripts/04_plot_results.sh
 ```
 
 - Runs [`scripts/quantitative_plot.py`](./scripts/quantitative_plot.py) (creates Figures 1–3) and [`scripts/qualitative_plot.py`](./scripts/qualitative_plot.py) (creates Figure 4).
-- **Input**: [`outputs/results.csv`](./outputs/results.csv) (from Step 3)
+- **Input**: `outputs/results.csv` (from Step 3)
 - **Output**:
-  - [`outputs/fig1_reconstruction_quality.png`](./outputs/fig1_reconstruction_quality.png)
-  - [`outputs/fig2_edit_distance.png`](./outputs/fig2_edit_distance.png)
-  - [`outputs/fig3_embedding_similarity.png`](./outputs/fig3_embedding_similarity.png)
-  - [`outputs/fig4_reconstruction_examples.png`](./outputs/fig4_reconstruction_examples.png)
+  - `outputs/fig1_reconstruction_quality.png`
+  - `outputs/fig2_edit_distance.png`
+  - `outputs/fig3_embedding_similarity.png`
+  - `outputs/fig4_reconstruction_examples.png`
 
 ---
 
@@ -300,9 +300,12 @@ final_project/
 │   ├── fig3_embedding_similarity.png      # Embedding similarity plot
 │   └── fig4_reconstruction_examples.png   # Qualitative comparison table
 ├── assets/
-│   └── results.csv                        # Copy of final metrics
-└── docs/
-    └── MEMO.md                            # Internal rough notes (Chinese)
+│   ├── results.csv                        # Full metric table
+│   ├── fig1_reconstruction_quality.png    # ROUGE-L, BLEU-4, Exact Match
+│   ├── fig2_edit_distance.png             # Edit distance plot
+│   ├── fig3_embedding_similarity.png      # Embedding similarity plot
+│   └── fig4_reconstruction_examples.png   # Qualitative comparison table 
+└── ...
 ```
 
 ---
@@ -334,18 +337,18 @@ Li, H., Xu, M., & Song, Y. (2023). Sentence Embedding Leaks More Information tha
 
 The following components were implemented as part of this project, extending the original GEIA repository with new infrastructure and scientific experiments.
 
-### 10.1 Original Scripts ([`scripts/`](./scripts/))
+### 10.1 Original Scripts
 
 The entire [`scripts/`](./scripts/) directory was built from scratch. All files within it are original work:
 
-- **[`scripts/01_train_attacker.sh`](./scripts/01_train_attacker.sh)** — Shell script to train the GEIA attacker on the PersonaChat dataset with configurable hyperparameters.
-- **[`scripts/02_test_attacker.sh`](./scripts/02_test_attacker.sh)** — Shell script that runs the attacker across all 15 noise scales by invoking `test_attacker.py` in a loop with different `--noise_scale` values.
-- **[`scripts/03_eval_results.sh`](./scripts/03_eval_results.sh)** — Shell script that runs `eval_results.py` to compute all metrics and then `quantitative_plot.py` and `qualitative_plot.py` to generate figures.
-- **[`scripts/04_plot_results.sh`](./scripts/04_plot_results.sh)** — Shell script that generates all final figures from the results CSV.
-- **[`scripts/test_attacker.py`](./scripts/test_attacker.py)** — The core scientific contribution: a modified test pipeline that injects Gaussian noise into projected sentence embeddings before beam-search decoding, enabling systematic measurement across noise scales.
-- **[`scripts/eval_results.py`](./scripts/eval_results.py)** — Batch evaluation script that computes ROUGE-1/2/L, BLEU-1/2/4, Exact Match, Edit Distance, and Embedding Similarity by loading log files and using the `sentence-t5-xxl` model, writing the full results table to [`outputs/results.csv`](./outputs/results.csv).
-- **[`scripts/quantitative_plot.py`](./scripts/quantitative_plot.py)** — Publication-quality line chart generation (Figures 1–3) with log-scale x-axis, threshold region shading, and consistent styling.
-- **[`scripts/qualitative_plot.py`](./scripts/qualitative_plot.py)** — Generates the qualitative comparison table (Figure 4) showing ground-truth and reconstructed sentences at each noise level.
+- **[`01_train_attacker.sh`](./scripts/01_train_attacker.sh)** — Shell script to train the GEIA attacker on the PersonaChat dataset with configurable hyperparameters.
+- **[`02_test_attacker.sh`](./scripts/02_test_attacker.sh)** — Shell script that runs the attacker across all 15 noise scales by invoking `test_attacker.py` in a loop with different `--noise_scale` values.
+- **[`03_eval_results.sh`](./scripts/03_eval_results.sh)** — Shell script that runs `eval_results.py` to compute all metrics and then `quantitative_plot.py` and `qualitative_plot.py` to generate figures.
+- **[`04_plot_results.sh`](./scripts/04_plot_results.sh)** — Shell script that generates all final figures from the results CSV.
+- **[`test_attacker.py`](./scripts/test_attacker.py)** — The core scientific contribution: a modified test pipeline that injects Gaussian noise into projected sentence embeddings before beam-search decoding, enabling systematic measurement across noise scales.
+- **[`eval_results.py`](./scripts/eval_results.py)** — Batch evaluation script that computes ROUGE-1/2/L, BLEU-1/2/4, Exact Match, Edit Distance, and Embedding Similarity by loading log files and using the `sentence-t5-xxl` model, writing the full results table to `outputs/results.csv`.
+- **[`quantitative_plot.py`](./scripts/quantitative_plot.py)** — Publication-quality line chart generation (Figures 1–3) with log-scale x-axis, threshold region shading, and consistent styling.
+- **[`qualitative_plot.py`](./scripts/qualitative_plot.py)** — Generates the qualitative comparison table (Figure 4) showing ground-truth and reconstructed sentences at each noise level.
 
 ### 10.2 Modifications to Original Files
 
