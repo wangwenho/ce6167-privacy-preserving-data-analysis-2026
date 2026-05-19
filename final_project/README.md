@@ -109,7 +109,7 @@ Following the original GEIA protocol, the test set is limited to the first 1,000
 
 #### Figure 1: Generation Quality (ROUGE-L, BLEU-4, Exact Match)
 
-![Generation Quality](outputs/fig1_reconstruction_quality.png)
+![Generation Quality](assets/fig1_reconstruction_quality.png)
 
 Three key metrics plotted against noise scale on a logarithmic x-axis. The gray shaded region ( $\sigma \in (0.01, 0.05)$ ) marks the transition zone where reconstruction quality collapses.
 
@@ -119,13 +119,13 @@ Three key metrics plotted against noise scale on a logarithmic x-axis. The gray 
 
 #### Figure 2: Edit Distance
 
-![Edit Distance](outputs/fig2_edit_distance.png)
+![Edit Distance](assets/fig2_edit_distance.png)
 
 Mean edit distance rises steadily from ~25 (baseline) to ~55 at high noise levels, indicating progressively greater divergence between the reconstruction and the ground truth.
 
 #### Figure 3: Embedding Similarity
 
-![Embedding Similarity](outputs/fig3_embedding_similarity.png)
+![Embedding Similarity](assets/fig3_embedding_similarity.png)
 
 Cosine similarity between ground-truth and reconstructed sentence embeddings. This is the **least sensitive** metric, declining gracefully from 0.89 (baseline) to 0.63 at $\sigma = 0.5$, suggesting that even when the exact wording is lost, rough semantic content may be preserved.
 
@@ -133,7 +133,7 @@ Cosine similarity between ground-truth and reconstructed sentence embeddings. Th
 
 #### Figure 4: Reconstruction Examples
 
-![Reconstruction Examples](outputs/fig4_reconstruction_examples.png)
+![Reconstruction Examples](assets/fig4_reconstruction_examples.png)
 
 A side-by-side comparison of the same input sentence reconstructed at each noise level. At $\sigma \in [0, 0.01]$, the reconstructions are nearly identical to the baseline. At $\sigma \in [0.05, \infty)$, the outputs become semantically unrelated or degenerate.
 
