@@ -2,7 +2,7 @@
 
 ## 1. Abstract
 
-This project extends the **Generative Embedding Inversion Attack (GEIA)** framework proposed by Li et al. (ACL 2023 Findings) by investigating **Gaussian noise perturbation** as a defense mechanism against sentence embedding inversion. We systematically evaluate how adding isotropic Gaussian noise of varying magnitudes to sentence embeddings affects the ability of a generative attacker model (DialoGPT-large) to recover the original text from the perturbed embeddings.
+This project extends the [**Generative Embedding Inversion Attack (GEIA)**](https://arxiv.org/abs/2305.03010) framework proposed by Li et al. (ACL 2023 Findings) by investigating **Gaussian noise perturbation** as a defense mechanism against sentence embedding inversion. We systematically evaluate how adding isotropic Gaussian noise of varying magnitudes to sentence embeddings affects the ability of a generative attacker model (DialoGPT-large) to recover the original text from the perturbed embeddings.
 
 Our experiments across 15 noise scales ( $\sigma \in [0, 0.5]$ ) reveal three distinct regimes: **immune** ( $\sigma \in [0, 0.01]$ ), where attack quality is virtually unaffected; **transition** ( $\sigma \in (0.01, 0.05)$ ), where all metrics degrade rapidly; and **failure** ( $\sigma \in [0.05, \infty)$ ), where the attacker effectively produces random text. These findings demonstrate that while small Gaussian noise is insufficient as a practical defense, moderate noise levels ( $\sigma \geq 0.05$ ) can completely neutralize generative embedding inversion attacks — albeit at the cost of degraded embedding utility.
 
@@ -16,9 +16,9 @@ Sentence embeddings produced by pre-trained encoder models (e.g., Sentence-BERT)
 
 The attack pipeline consists of:
 
-1. A **victim encoder** (e.g., `all-mpnet-base-v1`) that produces a fixed-dimensional sentence embedding.
+1. A **victim encoder** (e.g., [`all-mpnet-base-v1`](https://huggingface.co/sentence-transformers/all-mpnet-base-v1)) that produces a fixed-dimensional sentence embedding.
 2. A **projection layer** that maps the embedding into the token embedding space of a language model.
-3. An **attacker decoder** (e.g., DialoGPT-large) that autoregressively generates the recovered sentence from the projected embedding.
+3. An **attacker decoder** (e.g., [`DialoGPT-large`](https://huggingface.co/microsoft/DialoGPT-large)) that autoregressively generates the recovered sentence from the projected embedding.
 
 ### 2.2 Motivation: Noise as a Defense
 
@@ -264,48 +264,67 @@ bash scripts/04_plot_results.sh
 
 ```text
 final_project/
-├── README.md                              # This report
-├── pyproject.toml                         # Project metadata & dependencies (uv)
-├── .python-version                        # Python 3.9
-├── attacker.py                            # GEIA attacker training pipeline
-├── attacker_evaluation_gpt.py             # Evaluation & decoding utilities
-├── attacker_models.py                     # Attacker model architectures
-├── data_process.py                        # Data loading & preprocessing
-├── config.py                              # Shared configuration
-├── decode_beam_search.py                  # Beam search decoder
-├── eval_generation.py                     # Generation quality evaluation
-├── simcse_persona.py                      # PersonaChat data processing
+│
+├── README.md                           # This report
+├── pyproject.toml                      # Project metadata & dependencies (uv)
+├── uv.lock                             # Lockfile for reproducible environments
+├── .python-version                     # Python 3.9
+│
+├── attacker.py                         # GEIA attacker training pipeline (original)
+├── attacker_evaluation_gpt.py          # Evaluation & decoding utilities (original)
+├── attacker_models.py                  # Attacker model architectures (original)
+├── attacker_opt.py                     # OPT attacker variant (original)
+├── attacker_random_gpt2.py             # Random-init GPT-2 attacker (original)
+├── attacker_t5.py                      # T5 attacker variant (original)
+├── config.py                           # Shared configuration (original)
+├── data_process.py                     # Data loading & preprocessing (modified)
+├── decode_beam_search.py               # Beam search decoder (original)
+├── decode_beam_search_opt.py           # OPT beam search decoder (original)
+├── eval_classification.py              # Token-level classification eval (original)
+├── eval_generation.py                  # Generation quality eval (modified)
+├── eval_ppl.py                         # Perplexity evaluation (original)
+├── simcse_persona.py                   # PersonaChat data processing (original)
+│
+├── baseline/
+│   ├── baseline_models.py              # Baseline MLP/RNN attackers (original)
+│   └── projection.py                   # Baseline training script (original)
+│
 ├── data/
 │   └── personachat/
-│       └── processed_persona/             # PersonaChat dataset splits
+│       └── processed_persona/
 │           ├── train.txt
 │           ├── dev.txt
 │           └── test.txt
+│
 ├── models/
 │   ├── attacker_gpt2_large_personachat_mpnet/   # Trained attacker checkpoint
 │   └── projection_gpt2_large_personachat_mpnet  # Trained projection layer
-├── scripts/
-│   ├── 01_train_attacker.sh               # Training script
-│   ├── 02_test_attacker.sh                # Noise experiment script
-│   ├── 03_eval_results.sh                 # Evaluation script
-│   ├── 04_plot_results.sh                 # Visualization script
-│   ├── test_attacker.py                   # Noise-injection test harness
-│   ├── eval_results.py                    # Metric computation
-│   ├── quantitative_plot.py               # Figures 1–3 (line charts)
-│   └── qualitative_plot.py               # Figure 4 (comparison table)
-├── outputs/
-│   ├── results.csv                        # Full metric table
-│   ├── fig1_reconstruction_quality.png    # ROUGE-L, BLEU-4, Exact Match
-│   ├── fig2_edit_distance.png             # Edit distance plot
-│   ├── fig3_embedding_similarity.png      # Embedding similarity plot
-│   └── fig4_reconstruction_examples.png   # Qualitative comparison table
-├── assets/
-│   ├── results.csv                        # Full metric table
-│   ├── fig1_reconstruction_quality.png    # ROUGE-L, BLEU-4, Exact Match
-│   ├── fig2_edit_distance.png             # Edit distance plot
-│   ├── fig3_embedding_similarity.png      # Embedding similarity plot
-│   └── fig4_reconstruction_examples.png   # Qualitative comparison table 
-└── ...
+│
+├── scripts/                             # All original work (see Section 10)
+│   ├── 01_train_attacker.sh
+│   ├── 02_test_attacker.sh
+│   ├── 03_eval_results.sh
+│   ├── 04_plot_results.sh
+│   ├── test_attacker.py
+│   ├── eval_results.py
+│   ├── quantitative_plot.py
+│   └── qualitative_plot.py
+│
+├── outputs/                            # Auto-generated experiment results
+│   ├── results.csv
+│   ├── fig1_reconstruction_quality.png
+│   ├── fig2_edit_distance.png
+│   ├── fig3_embedding_similarity.png
+│   └── fig4_reconstruction_examples.png
+│
+├── assets/                             # Curated copies of outputs/ for README
+│   └── (same files copied from outputs/)
+│
+└── result verification/                # Additional analysis tools (original)
+    ├── data_stat.py
+    ├── embed_test.py
+    ├── ner.py
+    └── swr_processor.py
 ```
 
 ---

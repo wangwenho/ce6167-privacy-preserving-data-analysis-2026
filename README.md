@@ -4,7 +4,7 @@
 
 For information about the homework 1, please refer to the [homework description](./hw1/README.md).
 
-## Final Project: Generative Embedding Inversion Attack
+## Final Project: Defending Against Generative Embedding Inversion Attacks via Gaussian Noise Perturbation
 
 For information about the final project, please refer to the [final project description](./final_project/README.md).
 

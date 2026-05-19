@@ -12,3 +12,6 @@ wheels/
 # models
 models/attacker*
 models/projection*
+
+# Outputs
+outputs/
