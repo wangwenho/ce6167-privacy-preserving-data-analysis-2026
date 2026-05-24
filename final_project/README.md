@@ -1,4 +1,4 @@
-# Defending Against Generative Embedding Inversion Attacks via Gaussian Noise Perturbation
+# Final Project: Defending Against Generative Embedding Inversion Attacks via Gaussian Noise Perturbation
 
 ## 1. Abstract
 
@@ -98,7 +98,7 @@ The attacker is first trained on clean (noise-free) embeddings for 5 epochs on t
 
 ### 4.3 Test Data Subsampling
 
-Following the original GEIA protocol, the test set is limited to the first 1,000 sentences ([`data_process.py`](./data_process.py), line 16–17) to balance statistical significance with computational cost.
+Following the original GEIA protocol, the test set is limited to the first 1,000 sentences ([`data_process.py`](./data_process.py), line 22-23) to balance statistical significance with computational cost.
 
 ---
 
