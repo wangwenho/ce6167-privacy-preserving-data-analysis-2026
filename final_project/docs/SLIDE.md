@@ -95,7 +95,7 @@ May 2026
 - **Transition Region** ( $\sigma \in (0.01, 0.05)$ ): Rapid, monotonic degradation across **all** metrics. ROUGE-L falls from 0.51 → 0.24, BLEU-4 drops ~75%.
 - **Failure Region** ( $\sigma \in [0.05, \infty)$ ): Exact Match = **0%**, BLEU-4 ≈ 0, ROUGE-L < 0.19. Attack outputs are **effectively random**.
 
-> **Key insight**: A sharp **threshold effect** exists rather than a gradual decay — small increases in $\sigma$ near 0.02–0.05 can flip the defense from ineffective to fully effective.
+> **Key insight**: A sharp **threshold effect** exists rather than a gradual decay — small increases in $\sigma$ near 0.01–0.05 can flip the defense from ineffective to fully effective.
 
 ---
 
@@ -111,6 +111,6 @@ May 2026
 
 - **8 new scripts** in `scripts/` for training, testing, evaluation, and visualization
 - **Modified** `data_process.py` and `eval_generation.py` to support noisy embedding pipelines
-- **Systematic quantification** of the noise threshold ( $\sigma \approx 0.02$–$0.05$ ) where GEIA begins to fail
-- **Comprehensive evaluation** across **15 noise scales** and **5 metrics**, revealing three distinct defense regimes
+- **Systematic quantification** of the noise threshold ( $\sigma \approx 0.01$–$0.05$ ) where GEIA begins to fail
+- **Comprehensive evaluation** across **15 noise scales** and **5 metrics**, revealing three distinct defense regions
 - **Qualitative analysis** confirming that **noise levels ≥ 0.05** render reconstructions semantically unrelated
